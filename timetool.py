@@ -4,7 +4,7 @@ import time as time
 import warnings
 
 from .utils import is_out_index
-from .strtool import color
+from .lib.BeautifyPrint import CSIcolor, _print
 
 __all__ = ['Clocker']
 
@@ -84,7 +84,9 @@ class Clocker(ClockAction):
         _s, _e = start_point, end_point
         if self.nonclock:
             times = self.runtime
-        elif _s == _e or is_out_index([_s,_e],length=self.count):
+        elif is_out_index([_s,_e],length=self.count):
+            times = self.record_times[-1]
+        elif _s == _e:
             times = self.record_times[_e]
         else:
             times = self.record_times[_e] - self.record_times[_s]
@@ -96,9 +98,9 @@ class Clocker(ClockAction):
             times = self.runtime-self.record_times[-1]
             self.__puts(times)
         else:
-            warnings.warn(f"{color.yellow}Not get clock.{color.default}"
+            warnings.warn(f"{CSIcolor.yellow}Not get clock.{CSIcolor.default}"
                         , Warning)
 
     def __puts(self, times):
-        
-        print(self.unit.format(times=times))
+        # output time
+        _print(self.unit.format(times=times))

@@ -133,13 +133,15 @@ class SimplePath(DefinedStr):
 
         return SimplePath(new_path)
 
-    def remove(self, rmtree=False) -> bool:
+    def remove(self, *, rmtree=False) -> bool:
         """Remove file or dir."""
         # TODO: 限制删除目录的范围
-        try:
-            os.remove(self.path_value)
-        except Exception as e:
-            if self.is_dir:
+        if not self.is_exist:
+            return False
+        if self.is_dir:
+            try:
+                os.rmdir(self.path_value)
+            except OSError:
                 if rmtree is False:
                     warnings.warn("You are deleting a dir tree. "
                                 "It cannot be deleted implicitly. "
@@ -147,10 +149,8 @@ class SimplePath(DefinedStr):
                                 DeletDirTreeWarning)
                     return False
                 shutil.rmtree(self.path_value)
-            else:
-                warnings.warn(e, UserWarning)
-                return False
-
+        else:
+            os.remove(self.path_value)
         return True
 
     rm = remove
@@ -232,13 +232,18 @@ class SimplePath(DefinedStr):
         """Make file"""
         # HACK:
         try:
-            parent = self._parent()
-            path = self.__merge_path(parent, file_name)
+            if self.is_file:
+                parent = self._parent()
+                path = self.__merge_path(parent, file_name)
+            else:
+                path = self.__add_path(file_name)
             if is_exist(path):
+                file = None
                 return
             file = open(path, 'w', encoding="utf-8")
         finally:
-            file.close()
+            if file is not None:
+                file.close()
 
     def openfile(self,
             mode="r", 

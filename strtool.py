@@ -1,67 +1,7 @@
 import re
-import shutil
 
-__all__ = ["color", "DISPLAY", "reNoneType", "replaces_all", 
+__all__ = ["reNoneType", "replaces_all", 
            "re_compiler"]
-
-# Escape CSI code
-
-DEFAULT = '\x1b[0m'
-
-# display
-DISPLAY = {
-    "highlight"  : '\x1b[1m',
-    "overlink"   : '\x1b[4m',
-    "blink"      : '\x1b[5m',
-    "white_light": '\x1b[7m',
-    "invisible"  : '\x1b[8m'
-}
-
-# color
-COLOR = {
-    'default' :    DEFAULT,
-    'red'     : '\x1b[31m',
-    'blue'    : '\x1b[34m',
-    'black'   : '\x1b[30m',
-    'white'   : '\x1b[37m',
-    'green'   : '\x1b[32m',
-    'yellow'  : '\x1b[33m',
-    'cyanine' : '\x1b[36m',
-    'amaranth': '\x1b[35m'
-}
-
-# color background
-BACKGROUND = {
-    "black"   : '\x1b[40m',
-    "red"     : '\x1b[41m',
-    "green"   : '\x1b[42m',
-    "yellow"  : '\x1b[43m',
-    "blue"    : '\x1b[44m',
-    "amaranth": '\x1b[45m',
-    "cyanine" : '\x1b[46m',
-    "white"   : '\x1b[47m'
-}
-
-class color:
-    """Use simple escape color"""
-    default    =  COLOR['default']
-    red        =  COLOR['red']
-    blue       =  COLOR['blue']
-    black      =  COLOR['black']
-    white      =  COLOR['white']
-    green      =  COLOR['green']
-    yellow     =  COLOR['yellow']
-    cyanine    =  COLOR['cyanine']
-    amaranth   =  COLOR['amaranth']
- 
-    b_red      =  BACKGROUND['red']
-    b_blue     =  BACKGROUND['blue']
-    b_black    =  BACKGROUND['black']
-    b_white    =  BACKGROUND['white']
-    b_green    =  BACKGROUND['green']
-    b_yellow   =  BACKGROUND['yellow']
-    b_cyanine  =  BACKGROUND['cyanine']
-    b_amaranth =  BACKGROUND['amaranth']
 
 class reNoneType():
     """Using:
