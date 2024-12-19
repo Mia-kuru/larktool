@@ -76,6 +76,15 @@ class DefinedStr(str):
     def __new__(cls, value=""):
         return super(DefinedStr, cls).__new__(cls, value)
 
+class DirTree:
+    def __init__(self, files=None, dirs=None):
+        self.default_tree = dict()
+        self.default_tree.setdefault("file", [])
+        self.default_tree.setdefault("dir", [])
+        # return tuple("parent_name", tree:dict)
+
+    def get_file(self):
+        pass
 
 class DeletDirTreeWarning(Warning):
     """dir tree cannot be deleted implicitly"""

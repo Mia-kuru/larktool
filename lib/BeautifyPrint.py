@@ -83,10 +83,10 @@ esc_code = {
 }
 
 def is_hex_color(value):
-    return re.match(r'^[0-9a-fA-F]{6}$', value)
+    return re.match(r'^[0-9a-fA-F]{6}$', value) is not None
 
 def is_256_color(value):
-    if not value.isdigit():
+    if not str(value).isdigit():
         return False
     return int(value) < 256 and int(value) >= 0
 
@@ -95,29 +95,30 @@ def hex_to_rgb10(hex_value):
     # Return a tuple of the form (r, g, b)
     if isinstance(hex_value, str):
         hex_value = hex_value.lstrip('#')
-
         if not is_hex_color(hex_value):
-            raise ValueError("%s is not a hex color" % hex_value)
-
-        r = int(hex_value[0:2], 16)
-        g = int(hex_value[2:4], 16)
-        b = int(hex_value[4:6], 16)
-    elif isinstance(hex_value, bytes):
-        r = int.from_bytes(hex_value[0:1], byteorder='big')
-        g = int.from_bytes(hex_value[1:2], byteorder='big')
-        b = int.from_bytes(hex_value[2:3], byteorder='big')
+            raise ValueError("%s is not a valid hex color"
+                             % hex_value)
     else:
-        raise TypeError("Input must be a str or bytes.")
+        raise TypeError("Input must be a str.")
+
+    r = int(hex_value[0:2], 16)
+    g = int(hex_value[2:4], 16)
+    b = int(hex_value[4:6], 16)
 
     return (r, g, b)
 
 def rgb10_to_hex(r, g, b):
-    return hex(r)[2:] + hex(g)[2:] + hex(b)[2:]
+    if not all(isinstance(i, int) for i in (r, g, b)):
+        raise ValueError("All inputs must be integers.")
+
+    r, g, b = abs(r), abs(g), abs(b)
+    hex_value = ''.join(f"{item:02x}" for item in (r, g, b))
+    return hex_value
 
 class _CSIcolorMeta(type):
     def __getattr__(cls, name):
         color = None
-        # HACK: 
+
         mode = cls.set_color.get('foreground')
         if name.startswith('b_'):
             name = name[2:]
@@ -141,7 +142,7 @@ class _CSIcolorMeta(type):
         return getattr(cls, color, cls.default)
 
 class CSIcolor(metaclass=_CSIcolorMeta):
-    """escape code contorl color calss"""
+    """Escape code contorl color calss"""
     default    =  esc_code['default_display']
     red        =  esc_code['color']['red']
     blue       =  esc_code['color']['blue']
@@ -151,7 +152,7 @@ class CSIcolor(metaclass=_CSIcolorMeta):
     yellow     =  esc_code['color']['yellow']
     cyanine    =  esc_code['color']['cyanine']
     amaranth   =  esc_code['color']['amaranth']
- 
+
     b_red      =  esc_code["background_color"]['red']
     b_blue     =  esc_code["background_color"]['blue']
     b_black    =  esc_code["background_color"]['black']
@@ -235,11 +236,56 @@ def dict_format(dt, rows=5, max_cols=3, precision=3):
 
     return "\n".join(lines)
 
+def default_display():
+    """Restore default print display"""
+    sys.stdout.write(CSIcolor.default)
+
 def newline(n=1):
+    """Prints a specified number of newlines."""
     sys.stdout.write("\n"*n)
 
 def clearline():
-    sys.stdout.write(CLEAR_LINE)
+    """Set print at the beginning of the current line,
+    and clear current line buffer."""
+    sys.stdout.write(esc_code['clear_line'])
+    sys.stdout.flush()
+
+def _get_color_prefix(color, rgb, **kwargs):
+    color_prefix = ""
+    brgb = kwargs.get("brgb", None)
+
+    f_color = color or kwargs.get("c", None)
+    b_color = None
+
+    if rgb is not None:
+        f_color = rgb10_to_hex(*rgb)
+    if brgb is not None:
+        b_color = "b_" + rgb10_to_hex(*brgb)
+
+    if f_color is not None:
+        color_prefix += getattr(CSIcolor, f_color)
+    if b_color is not None:
+        color_prefix += getattr(CSIcolor, b_color)
+
+    return color_prefix
+
+def set_color(color=None, rgb=None, brgb=None, **kwargs):
+    """Set print display color
+
+    Args:
+        color (str, optional): Color name from [red, blue, black, white
+            , green, yellow, cyanine, amaranth] or 
+            a 16-bit hex RGB string (e.g., 'ff00ff'). If prefixed with "b_", 
+            it sets the background color. Defaults to None.
+        rgb (tuple, optional): A tuple (r, g, b) representing an RGB color. 
+            Defaults to None.
+        brgb (tuple, optional): A tuple (r, g, b) representing 
+            a background RGB color. Defaults to None.
+    """
+    color_prefix = _get_color_prefix(color, rgb, brgb=brgb, **kwargs)
+    if color_prefix == '':
+        color_prefix = CSIcolor.default
+    sys.stdout.write(color_prefix)
 
 def _print(
         *values: object,
@@ -247,6 +293,7 @@ def _print(
         end: str = "\n",
         flush: bool = False
     ):
+    """Equal print, but this performance is better"""
     values = sep.join(map(str, values)) + end
     sys.stdout.write(values)
     if flush:
@@ -258,37 +305,66 @@ def clprint(
         rgb=None, 
         sep=' ', 
         end='\n', 
-        flush=False, 
+        flush=False,
+        restore=True, 
         **kwargs
     ):
-    """print color font, """
-    # HACK: 
-    keys = kwargs.keys()
-    if 'c' in keys:
-        color = kwargs.get('c')
-    if rgb is not None:
-        r, g, b = rgb
-        color = rgb10_to_hex(r, g, b)
+    """
+    Prints values with optional color formatting.
 
-    if color is not None:
-        val = (
-            getattr(CSIcolor, color), sep.join(map(str, values))
-            , CSIcolor.default
-        )
-    else:
-        val = values
-    _print(*val, sep='', end=end, flush=flush)
+    Args:
+        *values: Arbitrary number of objects to print.
+        color (str, optional): Color name from [red, blue, black, white
+            , green, yellow, cyanine, amaranth] or 
+            a 16-bit hex RGB string (e.g., 'ff00ff'). If prefixed with "b_", 
+            it sets the background color. Defaults to None.
+        rgb (tuple, optional): A tuple (r, g, b) representing an RGB color. 
+            Defaults to None.
+        sep (str, optional): Separator between values. 
+            Defaults to " ".
+        end (str, optional): Added in the last line.
+            Defaults to "\\n".
+        flush (bool, optional): Whether to flush the output buffer. 
+            Defaults to True.
+        restore (bool): Restore default print color.
+            Defaults to True.
+    """
+    set_color(color=color, rgb=rgb, **kwargs)
+    _print(*values, sep=sep, end=end, flush=flush)
+    if restore: default_display()
 
-def inline_info(
+def inline_print(
         *values, 
         color=None, 
         rgb=None, 
+        brgb=None, 
+        line_color=False,
         flush=True, 
         sep=" ", 
         **kwargs
     ):
-    clear_line = esc_code['clear_line']
-    values = sep.join(map(str, values))
-    val = (clear_line, values)
-    clprint(*val, color=color, rgb=rgb
-            , sep='', end='', flush=flush, **kwargs)
+    """
+    Prints values on the same line with optional color formatting.
+
+    Args:
+        *values: Arbitrary number of objects to print.
+        color (str, optional): Color name from [red, blue, black, white
+            , green, yellow, cyanine, amaranth] or 
+            a 16-bit hex RGB string (e.g., 'ff00ff'). If prefixed with "b_", 
+            it sets the background color. Defaults to None.
+        rgb (tuple, optional): A tuple (r, g, b) representing an RGB color. 
+            Defaults to None.
+        brgb (tuple, optional): A tuple (r, g, b) representing 
+            a background RGB color. Defaults to None.
+        line_color (bool): The whole row becomes the background color.
+            Defaults to False.
+        flush (bool, optional): Whether to flush the output buffer. 
+            Defaults to True.
+        sep (str, optional): Separator between values. 
+            Defaults to " ".
+    """
+    if line_color:
+        set_color(color=color, rgb=rgb, brgb=brgb, **kwargs)
+    clearline()
+    clprint(*values, color=color, rgb=rgb, brgb=brgb
+            , sep=sep, end='', flush=flush, **kwargs)
